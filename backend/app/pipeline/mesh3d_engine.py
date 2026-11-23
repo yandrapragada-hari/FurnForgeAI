@@ -117,10 +117,32 @@ def check_3d_capabilities() -> Dict[str, Any]:
     if not has_torchmcubes and not has_skimage:
         triposr_missing.append("torchmcubes or scikit-image")
 
-    has_uv_bake = (
+    has_uv_bake = False
+    if (
         importlib.util.find_spec("xatlas") is not None
         and importlib.util.find_spec("moderngl") is not None
-    )
+    ):
+        try:
+            import moderngl
+
+            # Test whether a headless OpenGL context (EGL, standalone, or OSMesa) can be instantiated
+            for backend in ("egl", None, "osmesa"):
+                try:
+                    if backend:
+                        test_ctx = moderngl.create_context(standalone=True, backend=backend)
+                    else:
+                        test_ctx = moderngl.create_context(standalone=True)
+                    if test_ctx is not None:
+                        try:
+                            test_ctx.release()
+                        except Exception:
+                            pass
+                        has_uv_bake = True
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            has_uv_bake = False
     triposr_reasons: List[str] = []
     if triposr_missing:
         triposr_reasons.append(
@@ -535,27 +557,35 @@ class Mesh3DEngine:
                 mesh = to_gradio_3d_orientation(raw_mesh)
                 if progress:
                     progress(86, 100, "Baking UV texture atlas")
-                from app.pipeline.tsr.bake_texture import bake_texture as tsr_bake_texture
+                try:
+                    from app.pipeline.tsr.bake_texture import bake_texture as tsr_bake_texture
 
-                bake_out = tsr_bake_texture(mesh, model, scene_codes[0], TRIPOSR_TEXTURE_RESOLUTION)
-                tex_img = Image.fromarray((bake_out["colors"] * 255.0).astype(np.uint8)).transpose(
-                    Image.FLIP_TOP_BOTTOM
-                )
-                material = trimesh.visual.material.PBRMaterial(
-                    baseColorTexture=tex_img,
-                    metallicFactor=0.05,
-                    roughnessFactor=0.72,
-                )
-                visual = trimesh.visual.TextureVisuals(uv=bake_out["uvs"], material=material)
-                mesh = trimesh.Trimesh(
-                    vertices=mesh.vertices[bake_out["vmapping"]],
-                    faces=mesh.faces if len(bake_out["indices"]) == 0 else bake_out["indices"],
-                    vertex_normals=mesh.vertex_normals[bake_out["vmapping"]],
-                    visual=visual,
-                    process=False,
-                )
-                uv_mapped = True
-            else:
+                    bake_out = tsr_bake_texture(mesh, model, scene_codes[0], TRIPOSR_TEXTURE_RESOLUTION)
+                    tex_img = Image.fromarray((bake_out["colors"] * 255.0).astype(np.uint8)).transpose(
+                        Image.FLIP_TOP_BOTTOM
+                    )
+                    material = trimesh.visual.material.PBRMaterial(
+                        baseColorTexture=tex_img,
+                        metallicFactor=0.05,
+                        roughnessFactor=0.72,
+                    )
+                    visual = trimesh.visual.TextureVisuals(uv=bake_out["uvs"], material=material)
+                    mesh = trimesh.Trimesh(
+                        vertices=mesh.vertices[bake_out["vmapping"]],
+                        faces=mesh.faces if len(bake_out["indices"]) == 0 else bake_out["indices"],
+                        vertex_normals=mesh.vertex_normals[bake_out["vmapping"]],
+                        visual=visual,
+                        process=False,
+                    )
+                    uv_mapped = True
+                except Exception as bake_err:
+                    logger.warning(
+                        "UV texture atlas baking failed (%s); seamlessly falling back to high-fidelity triplane vertex coloring.",
+                        bake_err,
+                    )
+                    uv_mapped = False
+
+            if not uv_mapped:
                 if progress:
                     progress(86, 100, "Sampling high-clarity surface colors & smooth vertex normals")
                 with torch.inference_mode():

@@ -32,13 +32,30 @@ def make_atlas(mesh, texture_resolution, texture_padding):
     }
 
 
+def create_headless_moderngl_context():
+    if moderngl is None:
+        raise ImportError("moderngl is required for UV texture atlas rasterization.")
+    errors = []
+    # Try EGL first (headless GPU on Linux / Google Colab / Docker), then default standalone (Windows / X11), then osmesa
+    for backend in ("egl", None, "osmesa"):
+        try:
+            if backend:
+                return moderngl.create_context(standalone=True, backend=backend)
+            return moderngl.create_context(standalone=True)
+        except Exception as e:
+            errors.append(f"{backend or 'default'}: {e}")
+            continue
+    raise RuntimeError(
+        f"Unable to create headless OpenGL context for texture baking. Errors: {'; '.join(errors)}"
+    )
+
+
 def rasterize_position_atlas(
     mesh, atlas_vmapping, atlas_indices, atlas_uvs, texture_resolution, texture_padding
 ):
-    if moderngl is None:
-        raise ImportError("moderngl is required for UV texture atlas rasterization.")
-    ctx = moderngl.create_context(standalone=True)
-    basic_prog = ctx.program(
+    ctx = create_headless_moderngl_context()
+    try:
+        basic_prog = ctx.program(
         vertex_shader="""
             #version 330
             in vec2 in_uv;
@@ -144,6 +161,11 @@ def rasterize_position_atlas(
         texture_resolution, texture_resolution, 4
     )
     return fbo_np
+finally:
+    try:
+        ctx.release()
+    except Exception:
+        pass
 
 
 def positions_to_colors(model, scene_code, positions_texture, texture_resolution):
