@@ -1,0 +1,50 @@
+# Version Control
+.git
+.gitignore
+.github
+
+# Node / Frontend Artifacts
+node_modules
+frontend/node_modules
+frontend/dist
+dist
+.npm
+
+# Python Bytecode and Environments
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.venv
+venv
+ENV
+env
+backend/.venv
+backend/venv
+
+# Model & Cache Storage
+.hf_cache
+.torch_cache
+backend/.hf_cache
+backend/.torch_cache
+.cache
+
+# Jupyter Notebooks & Tests
+.ipynb_checkpoints
+.pytest_cache
+.coverage
+htmlcov
+
+# OS & Editor Metadata
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
+*.swo
+
+# Local logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

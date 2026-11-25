@@ -62,6 +62,15 @@ from app.pipeline.mesh3d_engine import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("FurnForgeAI")
 
+try:
+    import spaces
+    gpu_decorator = spaces.GPU(duration=30)
+    IS_ZEROGPU = True
+except Exception:
+    def gpu_decorator(fn):
+        return fn
+    IS_ZEROGPU = bool(os.getenv("SPACES_ZERO_GPU"))
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
@@ -291,6 +300,120 @@ def generate(req: GenerateRequest):
     control_image = Image.fromarray(cv2.cvtColor(cond_map, cv2.COLOR_GRAY2RGB))
     init_image = Image.fromarray(cv2.cvtColor(prep["padded_bgr"], cv2.COLOR_BGR2RGB))
 
+    @gpu_decorator
+    def _execute_sync() -> dict:
+        if engine.status != "ready":
+            engine.load()
+            if engine.status != "ready":
+                raise RuntimeError(engine.error or engine.status_detail)
+
+        t0 = time.time()
+        variations = []
+        for i in range(req.num_variations):
+            seed = base_seed + i
+            image = engine.generate(
+                control_image=control_image, init_image=init_image,
+                prompt=prompt["positive_prompt"], negative_prompt=negative,
+                mode=req.mode, strength=req.strength, fast=req.fast,
+                steps=req.num_inference_steps, guidance_scale=req.guidance_scale,
+                controlnet_scale=req.controlnet_conditioning_scale, seed=seed,
+            )
+            name = f"render_{gen_id}_{i}.png"
+            image.save(OUTPUT_DIR / name)
+            variations.append({"variation_index": i, "image_url": f"/outputs/{name}", "seed": seed})
+
+        elapsed = round(time.time() - t0, 2)
+        mode_label = engine.engine_label + (" + LCM-LoRA" if req.fast and engine.lcm_available else "")
+        mode_label += " | img2img" if req.mode == "img2img" else " | ControlNet txt2img"
+        record = {
+            "id": gen_id,
+            "category": req.category, "material": req.material, "color": req.color,
+            "style": req.style, "finish": req.finish,
+            "prompt": prompt["positive_prompt"],
+            "original_image_url": original_url,
+            "preprocessed_edge_url": f"/outputs/{edge_name}",
+            "result_image_url": variations[0]["image_url"],
+            "variations": variations,
+            "cnn_features": {k: v for k, v in cnn_features.items() if k != "b64_heatmap"},
+            "pipeline_mode": mode_label,
+            "execution_time": elapsed,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        db.save_generation(record)
+        return {**record, "cnn_features": cnn_features, "negative_prompt": negative, "device": DEVICE,
+                "settings": req.model_dump(exclude={"image_base64"})}
+
+    def _execute_cpu_fallback() -> dict:
+        logger.info("Executing generation on CPU fallback...")
+        t0 = time.time()
+        variations = []
+        for i in range(req.num_variations):
+            seed = base_seed + i
+            orig_device = engine.device
+            engine.device = "cpu"
+            try:
+                if hasattr(engine, "_pipe") and engine._pipe is not None:
+                    engine._pipe = engine._pipe.to("cpu")
+                if hasattr(engine, "_img2img") and engine._img2img is not None:
+                    engine._img2img = engine._img2img.to("cpu")
+                image = engine.generate(
+                    control_image=control_image, init_image=init_image,
+                    prompt=prompt["positive_prompt"], negative_prompt=negative,
+                    mode=req.mode, strength=req.strength, fast=True,
+                    steps=5, guidance_scale=1.5,
+                    controlnet_scale=req.controlnet_conditioning_scale, seed=seed,
+                )
+            finally:
+                pass
+            name = f"render_{gen_id}_{i}.png"
+            image.save(OUTPUT_DIR / name)
+            variations.append({"variation_index": i, "image_url": f"/outputs/{name}", "seed": seed})
+
+        elapsed = round(time.time() - t0, 2)
+        record = {
+            "id": gen_id,
+            "category": req.category, "material": req.material, "color": req.color,
+            "style": req.style, "finish": req.finish,
+            "prompt": prompt["positive_prompt"],
+            "original_image_url": original_url,
+            "preprocessed_edge_url": f"/outputs/{edge_name}",
+            "result_image_url": variations[0]["image_url"],
+            "variations": variations,
+            "cnn_features": {k: v for k, v in cnn_features.items() if k != "b64_heatmap"},
+            "pipeline_mode": "Stable Diffusion 1.5 + ControlNet (CPU Fallback)",
+            "execution_time": elapsed,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        db.save_generation(record)
+        return {**record, "cnn_features": cnn_features, "negative_prompt": negative, "device": "cpu",
+                "settings": req.model_dump(exclude={"image_base64"})}
+
+    if IS_ZEROGPU:
+        try:
+            record = _execute_sync()
+        except Exception as exc:
+            logger.warning("ZeroGPU execution note (%s); switching to CPU fallback", exc)
+            record = _execute_cpu_fallback()
+
+        job = Job(lambda j: record, total_units=req.num_variations)
+        job.id = f"job_{uuid.uuid4().hex[:12]}"
+        job.status = "completed"
+        job.result = record
+        jobs._jobs[job.id] = job
+        return {
+            "status": "completed",
+            "job_id": job.id,
+            "generation_id": gen_id,
+            "result": record,
+            "primary_image_url": record["result_image_url"],
+            "result_image_url": record["result_image_url"],
+            "original_image_url": original_url,
+            "preprocessed_edge_url": f"/outputs/{edge_name}",
+            "cnn_features": cnn_features,
+            "variations": record["variations"],
+            "queue_position": 0,
+        }
+
     def run(job: Job) -> dict:
         if engine.status != "ready":
             job.report(0, 0, 1, "Loading Stable Diffusion 1.5 + ControlNet weights")
@@ -468,6 +591,64 @@ def generate_3d_model(req: Generate3DRequest):
                 "compatibility": caps,
             },
         )
+
+    @gpu_decorator
+    def _execute_3d_sync() -> dict:
+        unloaded_2d = False
+        if engine.status in ("loading", "ready"):
+            engine.unload()
+            unloaded_2d = True
+
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        except Exception:
+            pass
+
+        try:
+            model_3d = mesh3d.reconstruct_from_image(
+                image_path=image_path,
+                generation_id=req.generation_id,
+                source_image_url=source_url,
+                model_preference=req.model_preference,
+                mc_resolution=req.mc_resolution,
+                bake_texture=req.bake_texture,
+                seed=req.seed,
+            )
+            db.update_3d_model(req.generation_id, model_3d)
+            return {"generation_id": req.generation_id, "model_3d": model_3d}
+        finally:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            gc.collect()
+            if unloaded_2d and PRELOAD_MODELS:
+                engine.load_async()
+
+    if IS_ZEROGPU:
+        res_3d = _execute_3d_sync()
+        job = Job(lambda j: res_3d, total_units=1)
+        job.id = f"job_3d_{uuid.uuid4().hex[:12]}"
+        job.status = "completed"
+        job.result = res_3d
+        jobs_3d._jobs[job.id] = job
+        return {
+            "status": "completed",
+            "job_id": job.id,
+            "generation_id": req.generation_id,
+            "source_image_url": source_url,
+            "primary_model": TRIPOSR_MODEL,
+            "fallback_model": HUNYUAN3D_MODEL,
+            "model_3d": res_3d["model_3d"],
+            "queue_position": 0,
+        }
 
     def run_3d(job: Job) -> dict:
         job.report(0, 5, 100, "Downloading & preparing TripoSR 3D AI weights...")

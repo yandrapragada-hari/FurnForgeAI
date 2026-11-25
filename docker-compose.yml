@@ -1,0 +1,62 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: furnforge-backend
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      - PORT=8005
+      - DEVICE=cpu # Set to 'cuda' when running with NVIDIA GPU runtime
+      - PRELOAD_MODELS=false # Set to 'true' to pre-warm diffusion weights on startup
+      - ENABLE_LCM=true # Fast 4-8 step Latent Consistency Model acceleration
+      - MAX_UPLOAD_MB=15
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/outputs:/app/backend/outputs
+      - ./backend/sample_sketches:/app/backend/sample_sketches
+      - hf_cache:/app/backend/.hf_cache
+      - torch_cache:/app/backend/.torch_cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+    # Uncomment the following block if running on an NVIDIA GPU host with nvidia-container-toolkit:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_BACKEND_URL= # Blank defaults to same-origin /api proxy via Nginx
+    container_name: furnforge-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  hf_cache:
+    name: furnforge_hf_cache
+  torch_cache:
+    name: furnforge_torch_cache

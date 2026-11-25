@@ -220,50 +220,53 @@ export default function ResultsViewer({
             onMouseDown={() => setIsDragging(true)}
             onMouseUp={() => setIsDragging(false)}
             onMouseLeave={() => setIsDragging(false)}
+            onTouchStart={() => setIsDragging(true)}
+            onTouchEnd={() => setIsDragging(false)}
             onTouchMove={(e) => {
               if (e.touches[0] && sliderRef.current) {
                 const rect = sliderRef.current.getBoundingClientRect();
                 const x = Math.max(0, Math.min(e.touches[0].clientX - rect.left, rect.width));
-                setSliderPos(Math.max(5, Math.min(95, (x / rect.width) * 100)));
+                setSliderPos(Math.max(2, Math.min(98, (x / rect.width) * 100)));
               }
             }}
             className="relative w-full aspect-square max-h-[500px] mx-auto rounded-2xl overflow-hidden cursor-ew-resize select-none touch-none border border-[#E8E2D5] bg-[#FAF8F5] shadow-inner"
           >
-            {/* Photoreal Render (Right) */}
-            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/5">
+            {/* Bottom layer: Generated render (always full size) */}
+            <div className="absolute inset-0 w-full h-full">
               <img
                 src={currentActiveImage}
                 alt="Rendered Furniture"
                 className="w-full h-full object-contain"
+                draggable={false}
               />
               <span className="absolute bottom-3 right-3 bg-[#1A1A1E]/80 backdrop-blur-md text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg">
-                Photoreal Render
+                AI Render
               </span>
             </div>
 
-            {/* Original Sketch (Left clipped) */}
+            {/* Top layer: Sketch, clipped to left of slider position */}
             <div
               className="absolute inset-0 h-full overflow-hidden bg-white"
               style={{ width: `${sliderPos}%` }}
             >
-              <div className="w-full h-full aspect-square flex items-center justify-center p-3">
-                <img
-                  src={sketchImg}
-                  alt="Original Sketch"
-                  className="max-h-full max-w-full object-contain filter contrast-125"
-                />
-              </div>
+              <img
+                src={sketchImg}
+                alt="Original Sketch"
+                className="w-full h-full object-contain filter contrast-125"
+                style={{ width: `${sliderRef.current?.getBoundingClientRect().width || 500}px`, maxWidth: 'none' }}
+                draggable={false}
+              />
               <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-[#1A1A1E] text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#E8E2D5] shadow-xs">
                 Hand Sketch
               </span>
             </div>
 
-            {/* Divider Handle */}
+            {/* Divider line and handle */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.5)] z-20"
               style={{ left: `${sliderPos}%` }}
             >
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-lg border-2 border-[#8B5A2B] flex items-center justify-center text-[#8B5A2B]">
+              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white shadow-lg border-2 border-[#8B5A2B] flex items-center justify-center text-[#8B5A2B] cursor-ew-resize">
                 <ArrowLeftRight className="w-3.5 h-3.5" />
               </div>
             </div>

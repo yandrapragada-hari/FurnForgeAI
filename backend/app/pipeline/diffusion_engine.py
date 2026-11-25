@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
+import sys
 import threading
 import time
 from typing import Callable, Optional
@@ -65,6 +67,9 @@ class DiffusionEngine:
     def load_async(self) -> None:
         if self.status in ("loading", "ready"):
             return
+        if os.getenv("SPACES_ZERO_GPU") or "spaces" in sys.modules:
+            self.load()
+            return
         threading.Thread(target=self.load, name="model-loader", daemon=True).start()
 
     def unload(self) -> None:
@@ -105,8 +110,9 @@ class DiffusionEngine:
                     UniPCMultistepScheduler,
                 )
 
-                # fp16 halves memory on GPUs; CPUs need fp32 for speed/accuracy.
-                dtype = torch.float16 if self.device in ("cuda", "xpu") else torch.float32
+                # Use float32 on GPU and CPU to eliminate the half-precision overflow (NaN -> solid 128 grey image)
+                # On server GPUs with ample VRAM (e.g. ZeroGPU 95GB Blackwell), float32 provides complete numerical stability.
+                dtype = torch.float32
 
                 cn_id = CONTROLNET_MODELS[DEFAULT_CONTROLNET]
                 self.status_detail = f"Downloading/loading ControlNet: {cn_id}"
@@ -139,7 +145,12 @@ class DiffusionEngine:
                     except Exception as exc:  # fast mode simply becomes unavailable
                         logger.warning("LCM-LoRA unavailable: %s", exc)
 
-                pipe = pipe.to(self.device)
+                try:
+                    pipe = pipe.to(self.device)
+                except Exception as exc:
+                    logger.warning("Could not move pipeline to %s (%s); falling back to CPU", self.device, exc)
+                    self.device = "cpu"
+                    pipe = pipe.to("cpu")
 
                 # Img2img variant sharing the very same weights (no extra memory).
                 try:
@@ -148,15 +159,15 @@ class DiffusionEngine:
                     img2img = StableDiffusionControlNetImg2ImgPipeline(**pipe.components)
                 img2img.set_progress_bar_config(disable=True)
 
-                # Enable VAE slicing for peak memory safety without slowing UNet SDPA
+                # Ensure VAE is strictly in float32 without slicing bugs
                 for p in (pipe, img2img):
                     try:
-                        if hasattr(p, "vae") and hasattr(p.vae, "enable_slicing"):
-                            p.vae.enable_slicing()
-                        elif hasattr(p, "enable_vae_slicing"):
-                            p.enable_vae_slicing()
+                        if hasattr(p, "vae") and p.vae is not None:
+                            p.vae.to(dtype=torch.float32)
+                            if hasattr(p.vae, "disable_slicing"):
+                                p.vae.disable_slicing()
                     except Exception as exc:
-                        logger.debug("vae slicing note: %s", exc)
+                        logger.debug("vae float32 note: %s", exc)
 
                 self._pipe, self._img2img = pipe, img2img
                 self.load_seconds = round(time.time() - t0, 1)
@@ -171,12 +182,15 @@ class DiffusionEngine:
 
     @staticmethod
     def _from_pretrained(cls, repo_id, **kwargs):
-        """Prefer the smaller fp16 checkpoint files; fall back to full-precision files."""
+        """Prefer safetensors with graceful fallback."""
         try:
-            return cls.from_pretrained(repo_id, variant="fp16", use_safetensors=True, **kwargs)
+            return cls.from_pretrained(repo_id, use_safetensors=True, **kwargs)
         except Exception as exc:
-            logger.info("fp16 variant not usable for %s (%s); loading default files", repo_id, exc)
-            return cls.from_pretrained(repo_id, **kwargs)
+            logger.info("Direct safetensors load for %s note: %s; trying variant fallback", repo_id, exc)
+            try:
+                return cls.from_pretrained(repo_id, variant="fp16", use_safetensors=True, **kwargs)
+            except Exception:
+                return cls.from_pretrained(repo_id, **kwargs)
 
     # ------------------------------------------------------------- inference
     @property
@@ -249,7 +263,6 @@ class DiffusionEngine:
                     num_inference_steps=steps,
                     guidance_scale=guidance_scale,
                     controlnet_conditioning_scale=float(controlnet_scale),
-                    control_guidance_end=0.72,
                     generator=generator,
                     callback_on_step_end=_on_step_end,
                 )

@@ -229,16 +229,41 @@ class CNNFeatureExtractor:
         return cam_full, b64, stats
 
     @staticmethod
-    def _geometry(edge_map: np.ndarray) -> Dict[str, Any]:
+    def compute_symmetry_index(edge_map: np.ndarray) -> float:
+        """Calculate lateral symmetry score [0.0, 1.0] across vertical sagittal bisection."""
+        h, w = edge_map.shape[:2]
+        if w < 2 or h < 2:
+            return 0.0
+        thick = cv2.dilate(edge_map, np.ones((7, 7), np.uint8))
+        half_w = w // 2
+        left = thick[:, :half_w]
+        right = cv2.flip(thick[:, w - half_w:], 1)
+        denom = np.count_nonzero(left) + np.count_nonzero(right)
+        if denom == 0:
+            return 1.0
+        overlap = np.count_nonzero(cv2.bitwise_and(left, right))
+        return round(float(2.0 * overlap / denom), 3)
+
+    @staticmethod
+    def compute_hu_moments(edge_map: np.ndarray) -> np.ndarray:
+        """Calculate log-transformed Hu Moments for scale/rotation/affine shape characterization."""
+        moments = cv2.moments(edge_map)
+        hu = cv2.HuMoments(moments).flatten()
+        log_hu = np.zeros_like(hu)
+        for i in range(len(hu)):
+            if abs(hu[i]) > 0:
+                log_hu[i] = -1.0 * np.sign(hu[i]) * np.log10(abs(hu[i]))
+            else:
+                log_hu[i] = 0.0
+        return log_hu
+
+    @classmethod
+    def _geometry(cls, edge_map: np.ndarray) -> Dict[str, Any]:
         """Simple, transparent geometric statistics of the edge map."""
         h, w = edge_map.shape[:2]
         n_edge = int(np.count_nonzero(edge_map))
-        # Dilate so hand-drawn lines a few pixels off still count as mirrored.
-        thick = cv2.dilate(edge_map, np.ones((7, 7), np.uint8))
-        left = thick[:, : w // 2]
-        right = cv2.flip(thick[:, w - w // 2:], 1)
-        overlap = np.count_nonzero(cv2.bitwise_and(left, right))
-        symmetry = (2 * overlap / max(1, np.count_nonzero(left) + np.count_nonzero(right)))
+        symmetry = cls.compute_symmetry_index(edge_map)
+        hu = cls.compute_hu_moments(edge_map).tolist()
 
         contours, _ = cv2.findContours(edge_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
@@ -248,7 +273,8 @@ class CNNFeatureExtractor:
             aspect = 1.0
         return {
             "edge_density_percent": round(n_edge / (h * w) * 100, 2),
-            "symmetry_score": round(float(symmetry), 3),
+            "symmetry_score": symmetry,
             "aspect_ratio": round(float(aspect), 2),
             "contour_count": len(contours),
+            "hu_moments": hu,
         }

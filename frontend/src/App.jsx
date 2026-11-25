@@ -13,14 +13,22 @@ export default function App() {
   const [isTechModalOpen, setIsTechModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState(null);
 
+  const refreshStatus = async () => {
+    const status = await checkHealth();
+    setBackendStatus(status);
+  };
+
   useEffect(() => {
-    async function loadStatus() {
-      const status = await checkHealth();
-      setBackendStatus(status);
-    }
-    loadStatus();
-    const interval = setInterval(loadStatus, 15000);
-    return () => clearInterval(interval);
+    refreshStatus();
+    const interval = setInterval(refreshStatus, 15000);
+    const handleBackendUpdated = () => {
+      refreshStatus();
+    };
+    window.addEventListener('furnforge-backend-updated', handleBackendUpdated);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('furnforge-backend-updated', handleBackendUpdated);
+    };
   }, []);
 
   const handleSelectPresetForStudio = (presetId) => {
@@ -30,13 +38,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F6F0] text-[#1A1A1E] selection:bg-[#8B5A2B]/20 selection:text-[#5C3818]">
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#09090B] selection:bg-[#0EA5E9]/15 selection:text-[#0284C7]">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         backendStatus={backendStatus}
         onOpenTechModal={() => setIsTechModalOpen(true)}
+        onBackendChanged={refreshStatus}
       />
 
       {/* Main Content Pages */}

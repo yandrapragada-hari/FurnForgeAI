@@ -101,6 +101,8 @@ def get_torch_device() -> str:
     forced = os.getenv("TORCH_DEVICE")
     if forced:
         return forced
+    if os.getenv("SPACES_ZERO_GPU") or "spaces" in sys.modules:
+        return "cpu"
     try:
         import torch
         if torch.cuda.is_available():

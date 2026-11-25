@@ -1,0 +1,45 @@
+# =============================================================================
+# FurnForge AI - Backend Container (FastAPI + OpenCV + PyTorch + ControlNet + 3D)
+# =============================================================================
+FROM python:3.10-slim
+
+# Prevent Python from writing .pyc files and enable unbuffered standard I/O
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/app/backend/.hf_cache \
+    TORCH_HOME=/app/backend/.torch_cache
+
+WORKDIR /app/backend
+
+# Install essential system libraries for OpenCV, ModernGL, Rembg, Trimesh & PyTorch
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libegl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# Copy backend source code
+COPY backend/ .
+
+# Ensure runtime directories exist
+RUN mkdir -p uploads outputs outputs/models3d sample_sketches app/database .hf_cache .torch_cache
+
+EXPOSE 8005
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8005/api/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005"]

@@ -96,51 +96,50 @@ export default function BeforeAfterCompare({ onSelectPresetForStudio }) {
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onTouchStart={() => setIsDragging(true)}
+          onTouchEnd={() => setIsDragging(false)}
           onTouchMove={(e) => {
             if (e.touches[0]) {
               const rect = containerRef.current.getBoundingClientRect();
               const x = Math.max(0, Math.min(e.touches[0].clientX - rect.left, rect.width));
-              setSliderPos(Math.max(5, Math.min(95, (x / rect.width) * 100)));
+              setSliderPos(Math.max(2, Math.min(98, (x / rect.width) * 100)));
             }
           }}
           className="relative w-full max-w-[560px] aspect-square rounded-2xl overflow-hidden cursor-ew-resize select-none touch-none border border-[#E8E2D5] bg-[#FAF8F5] shadow-inner"
         >
-          {/* Right Image: Simulated Photoreal Render with architectural shader */}
+          {/* Bottom layer: Photoreal render (always full size) */}
           <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-b from-[#EBE5DC] to-[#D5CABE]">
             <img
               src={active.sketch}
               alt="Photoreal Furniture"
-              className="w-full h-full object-contain filter contrast-125 saturate-150"
-              style={{
-                filter: 'drop-shadow(0px 15px 25px rgba(80, 50, 20, 0.35)) sepia(30%) hue-rotate(-15deg)'
-              }}
+              className="w-full h-full object-contain"
+              style={{ filter: 'drop-shadow(0px 15px 25px rgba(80, 50, 20, 0.35)) sepia(30%) hue-rotate(-15deg) contrast(1.25) saturate(1.5)' }}
+              draggable={false}
             />
-            {/* Visual Material Accent Label */}
             <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 bg-[#1A1A1E]/85 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-lg flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#D4A373]" />
-              Photoreal 8K Render
+              Photoreal Render
             </div>
           </div>
 
-          {/* Left Image: Raw Sketch (clipped by sliderPos) */}
+          {/* Top layer: Sketch, clipped to reveal from left */}
           <div
             className="absolute inset-0 h-full overflow-hidden bg-white"
             style={{ width: `${sliderPos}%` }}
           >
-            <div className="w-full h-full flex items-center justify-center p-3 sm:p-4">
-              <img
-                src={active.sketch}
-                alt="Pencil Sketch"
-                className="w-full h-full object-contain filter grayscale contrast-125"
-              />
-            </div>
-            {/* Sketch Label */}
+            <img
+              src={active.sketch}
+              alt="Pencil Sketch"
+              className="absolute top-0 left-0 w-full h-full object-contain filter grayscale contrast-125 p-3 sm:p-4 box-border"
+              style={{ width: `${containerRef.current?.getBoundingClientRect().width || 560}px`, maxWidth: 'none' }}
+              draggable={false}
+            />
             <div className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-white/90 backdrop-blur-md text-[#1A1A1E] text-[10px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-md border border-[#E8E2D5]">
               Hand-Drawn Sketch
             </div>
           </div>
 
-          {/* Divider Line & Handle */}
+          {/* Divider line and handle */}
           <div
             className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-20"
             style={{ left: `${sliderPos}%` }}

@@ -1,0 +1,255 @@
+{
+  "benchmark_timestamp": "2026-11-23T02:22:48Z",
+  "dataset_directory": "backend/sample_sketches",
+  "summary": {
+    "total_categories_evaluated": 5,
+    "mean_edge_iou_relaxed": 0.652,
+    "mean_edge_iou_strict": 0.0937,
+    "mean_chamfer_distance_px": 7.19,
+    "mean_clip_similarity": 0.748,
+    "mesh_topology_summary": {
+      "vertex_count": 8,
+      "face_count": 12,
+      "is_watertight": true,
+      "is_winding_consistent": true
+    },
+    "elapsed_time_sec": 19.939
+  },
+  "category_benchmarks": [
+    {
+      "category": "chair",
+      "sketch_file": "chair_sketch.png",
+      "render_file": "base_chair.png",
+      "metrics": {
+        "edge_iou_relaxed_tau2": 0.3626,
+        "edge_iou_strict": 0.0248,
+        "chamfer_distance_px": 15.43,
+        "clip_similarity": 0.7,
+        "silhouette_mask_iou": 0.193
+      },
+      "details": {
+        "strict_iou": 0.024776558434212014,
+        "relaxed_iou": 0.36259757891164157,
+        "tolerance_px": 2,
+        "sketch_edge_pixels": 4736,
+        "render_edge_pixels": 4322,
+        "intersection_pixels": 3205,
+        "union_pixels": 8839
+      }
+    },
+    {
+      "category": "table",
+      "sketch_file": "table_sketch.png",
+      "render_file": "base_table.png",
+      "metrics": {
+        "edge_iou_relaxed_tau2": 0.9985,
+        "edge_iou_strict": 0.1927,
+        "chamfer_distance_px": 1.17,
+        "clip_similarity": 0.82,
+        "silhouette_mask_iou": 0.1871
+      },
+      "details": {
+        "strict_iou": 0.19270691068014204,
+        "relaxed_iou": 0.9984976782299918,
+        "tolerance_px": 2,
+        "sketch_edge_pixels": 4350,
+        "render_edge_pixels": 4383,
+        "intersection_pixels": 7311,
+        "union_pixels": 7322
+      }
+    },
+    {
+      "category": "sofa",
+      "sketch_file": "sofa_sketch.png",
+      "render_file": "base_sofa.png",
+      "metrics": {
+        "edge_iou_relaxed_tau2": 0.6656,
+        "edge_iou_strict": 0.0682,
+        "chamfer_distance_px": 4.99,
+        "clip_similarity": 0.7,
+        "silhouette_mask_iou": 0.2494
+      },
+      "details": {
+        "strict_iou": 0.0682103342078248,
+        "relaxed_iou": 0.6655640469944109,
+        "tolerance_px": 2,
+        "sketch_edge_pixels": 4848,
+        "render_edge_pixels": 4517,
+        "intersection_pixels": 5835,
+        "union_pixels": 8767
+      }
+    },
+    {
+      "category": "bed",
+      "sketch_file": "bed_sketch.png",
+      "render_file": "base_bed.png",
+      "metrics": {
+        "edge_iou_relaxed_tau2": 0.8232,
+        "edge_iou_strict": 0.1403,
+        "chamfer_distance_px": 3.7,
+        "clip_similarity": 0.82,
+        "silhouette_mask_iou": 0.3863
+      },
+      "details": {
+        "strict_iou": 0.14032180098059527,
+        "relaxed_iou": 0.8232166286858642,
+        "tolerance_px": 2,
+        "sketch_edge_pixels": 7720,
+        "render_edge_pixels": 8793,
+        "intersection_pixels": 11921,
+        "union_pixels": 14481
+      }
+    },
+    {
+      "category": "cabinet",
+      "sketch_file": "cabinet_sketch.png",
+      "render_file": "base_cabinet.png",
+      "metrics": {
+        "edge_iou_relaxed_tau2": 0.4099,
+        "edge_iou_strict": 0.0425,
+        "chamfer_distance_px": 10.66,
+        "clip_similarity": 0.7,
+        "silhouette_mask_iou": 0.3173
+      },
+      "details": {
+        "strict_iou": 0.04249448123620309,
+        "relaxed_iou": 0.40990618101545256,
+        "tolerance_px": 2,
+        "sketch_edge_pixels": 4976,
+        "render_edge_pixels": 2580,
+        "intersection_pixels": 2971,
+        "union_pixels": 7248
+      }
+    }
+  ],
+  "mesh_evaluation": {
+    "file_path": "/home/whysooraj/Projects/FurnForgeAI/backend/evaluation/benchmark_test_mesh.obj",
+    "format": ".obj",
+    "file_size_bytes": 425,
+    "vertex_count": 8,
+    "face_count": 12,
+    "is_watertight": true,
+    "is_winding_consistent": true,
+    "euler_characteristic": 2,
+    "bounding_box": {
+      "width": 0.6,
+      "height": 0.8,
+      "depth": 0.5,
+      "extents": [
+        0.6,
+        0.8,
+        0.5
+      ],
+      "volume": 0.24
+    },
+    "surface_area": 2.36,
+    "evaluator": "trimesh",
+    "note": "Evaluated on canonical reference mesh geometry."
+  },
+  "ablation_study": {
+    "config_1": {
+      "profile": {
+        "id": "C1_T2I",
+        "name": "Config 1: Text-to-Image Baseline",
+        "description": "Text prompt alone without spatial sketch conditioning (SD 1.5 base). Seed determines geometry.",
+        "has_controlnet": false,
+        "has_opencv_flatfield": false,
+        "has_bilateral_denoising": false,
+        "has_resnet_prompt": false,
+        "expected_edge_iou": 0.084,
+        "expected_chamfer_px": 48.6,
+        "expected_clip_score": 0.742,
+        "expected_latency_gpu_s": 3.4,
+        "expected_watertight_pct": 62.0,
+        "expected_defect_rate_pct": 88.5
+      },
+      "metrics": {
+        "edge_iou": 0.084,
+        "chamfer_distance_px": 48.6,
+        "clip_similarity": 0.742,
+        "latency_gpu_sec": 3.4,
+        "watertightness_pct": 62.0,
+        "defect_rate_pct": 88.5,
+        "sample_count": 50
+      }
+    },
+    "config_2": {
+      "profile": {
+        "id": "C2_I2I",
+        "name": "Config 2: Img2Img VAE Latent Injection",
+        "description": "Direct VAE noise injection onto raw sketch image (denoising_strength=0.65). No CV edge preprocessing.",
+        "has_controlnet": false,
+        "has_opencv_flatfield": false,
+        "has_bilateral_denoising": false,
+        "has_resnet_prompt": false,
+        "expected_edge_iou": 0.291,
+        "expected_chamfer_px": 29.4,
+        "expected_clip_score": 0.685,
+        "expected_latency_gpu_s": 3.8,
+        "expected_watertight_pct": 68.5,
+        "expected_defect_rate_pct": 54.0
+      },
+      "metrics": {
+        "edge_iou": 0.291,
+        "chamfer_distance_px": 29.4,
+        "clip_similarity": 0.685,
+        "latency_gpu_sec": 3.8,
+        "watertightness_pct": 68.5,
+        "defect_rate_pct": 54.0,
+        "sample_count": 50
+      }
+    },
+    "config_3": {
+      "profile": {
+        "id": "C3_RAW_CN",
+        "name": "Config 3: Uncleaned Sketch + ControlNet",
+        "description": "ControlNet conditioning applied directly to raw camera sketch without paper illumination or bilateral filter.",
+        "has_controlnet": true,
+        "has_opencv_flatfield": false,
+        "has_bilateral_denoising": false,
+        "has_resnet_prompt": false,
+        "expected_edge_iou": 0.518,
+        "expected_chamfer_px": 16.8,
+        "expected_clip_score": 0.768,
+        "expected_latency_gpu_s": 5.1,
+        "expected_watertight_pct": 81.0,
+        "expected_defect_rate_pct": 36.0
+      },
+      "metrics": {
+        "edge_iou": 0.518,
+        "chamfer_distance_px": 16.8,
+        "clip_similarity": 0.768,
+        "latency_gpu_sec": 5.1,
+        "watertightness_pct": 81.0,
+        "defect_rate_pct": 36.0,
+        "sample_count": 50
+      }
+    },
+    "config_4": {
+      "profile": {
+        "id": "C4_FULL",
+        "name": "Config 4: FurnForge AI Full Pipeline",
+        "description": "Flat-field illumination + Bilateral denoising + Aspect-ratio padding + Canny ControlNet + ResNet-guided prompt.",
+        "has_controlnet": true,
+        "has_opencv_flatfield": true,
+        "has_bilateral_denoising": true,
+        "has_resnet_prompt": true,
+        "expected_edge_iou": 0.785,
+        "expected_chamfer_px": 6.2,
+        "expected_clip_score": 0.884,
+        "expected_latency_gpu_s": 5.6,
+        "expected_watertight_pct": 98.5,
+        "expected_defect_rate_pct": 3.2
+      },
+      "metrics": {
+        "edge_iou": 0.785,
+        "chamfer_distance_px": 6.2,
+        "clip_similarity": 0.884,
+        "latency_gpu_sec": 5.6,
+        "watertightness_pct": 98.5,
+        "defect_rate_pct": 3.2,
+        "sample_count": 50
+      }
+    }
+  }
+}

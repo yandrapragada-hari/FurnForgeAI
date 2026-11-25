@@ -92,6 +92,7 @@ def check_3d_capabilities() -> Dict[str, Any]:
             "device": "cpu",
             "gpu_name": None,
             "vram_gb": 0.0,
+            "priority_order": ["triposr", "hunyuan3d"],
             "primary": {
                 "name": "TripoSR",
                 "model_id": TRIPOSR_MODEL,

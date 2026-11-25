@@ -1,0 +1,4 @@
+/api/*  https://whysooraj-funforge-backend.hf.space/api/:splat  200
+/outputs/*  https://whysooraj-funforge-backend.hf.space/outputs/:splat  200
+/uploads/*  https://whysooraj-funforge-backend.hf.space/uploads/:splat  200
+/sample_sketches/*  https://whysooraj-funforge-backend.hf.space/sample_sketches/:splat  200
